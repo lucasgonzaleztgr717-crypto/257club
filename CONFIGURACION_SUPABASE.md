@@ -3,8 +3,8 @@
 ## ✅ Migración Completada
 
 ### Base de Datos
-- **Project URL**: `https://elrbukxpktwaomecusfv.supabase.co`
-- **Anon Key**: `sb_publishable_NwX02E1ZuSAE1os2dGKQcA_D_UNIQLb`
+- **Project URL**: `https://xdjgjzwbvkkugxhzwkkg.supabase.co`
+- **Anon Key**: `sb_publishable_SYzCqTsDZzEa-r5_NpXPEg_NFqlhND0`
 - **Status**: ✅ Base de datos creada y configurada
 
 ### Tablas Creadas (21 total)
@@ -50,9 +50,9 @@
 DATABASE_URL=file:/home/z/my-project/db/custom.db
 
 # Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://elrbukxpktwaomecusfv.supabase.co
-DATABASE_SUPABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.elrbukxpktwaomecusfv.supabase.co:5432/postgres
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_NwX02E1ZuSAE1os2dGKQcA_D_UNIQLb
+NEXT_PUBLIC_SUPABASE_URL=https://xdjgjzwbvkkugxhzwkkg.supabase.co
+DATABASE_SUPABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.xdjgjzwbvkkugxhzwkkg.supabase.co:5432/postgres
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_SYzCqTsDZzEa-r5_NpXPEg_NFqlhND0
 
 # OpenAI Configuration
 OPENAI_API_KEY=[SET_IN_ENV_VARIABLE]
@@ -92,7 +92,7 @@ ICLOUD_PHOTOS_PATH=C:\Users\lucas\iCloudPhotos\Photos
 ## 🧪 Pasos para Probar
 
 ### 1. Verificar en Supabase Dashboard
-1. Ve a: https://supabase.com/dashboard/project/elrbukxpktwaomecusfv
+1. Ve a: https://supabase.com/dashboard/project/xdjgjzwbvkkugxhzwkkg
 2. Abre **Table Editor**
 3. Verifica que las 21 tablas estén ahí
 4. Abre la tabla `leads` (debería estar vacía)

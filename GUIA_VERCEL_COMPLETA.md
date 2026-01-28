@@ -200,13 +200,13 @@ Haz clic en **"Add New"** para cada variable:
 
 #### Variable 1: NEXT_PUBLIC_SUPABASE_URL
 - **Name:** `NEXT_PUBLIC_SUPABASE_URL`
-- **Value:** `https://elrbukxpktwaomecusfv.supabase.co`
+- **Value:** `https://xdjgjzwbvkkugxhzwkkg.supabase.co`
 - **Environments:** Selecciona **Production**, **Preview**, **Development** (los tres)
 - Haz clic en **"Save"**
 
 #### Variable 2: NEXT_PUBLIC_SUPABASE_ANON_KEY
 - **Name:** `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- **Value:** `sb_publishable_NwX02E1ZuSAE1os2dGKQcA_D_UNIQLb`
+- **Value:** `sb_publishable_SYzCqTsDZzEa-r5_NpXPEg_NFqlhND0`
 - **Environments:** Selecciona **Production**, **Preview**, **Development** (los tres)
 - Haz clic en **"Save"**
 
@@ -270,7 +270,7 @@ Deberías ver la landing page de **"Transformación Consciente - by Lucas Gonzal
 3. Deberías ver el mensaje de éxito
 
 ### 8.4 Verificar en Supabase
-1. Ve a: https://supabase.com/dashboard/project/elrbukxpktwaomecusfv
+1. Ve a: https://supabase.com/dashboard/project/xdjgjzwbvkkugxhzwkkg
 2. Entra a **SQL Editor**
 3. Ejecuta:
    ```sql

@@ -65,8 +65,8 @@ Vercel detectará automáticamente que es un proyecto Next.js. Configura:
 
 | Variable | Valor |
 |----------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://elrbukxpktwaomecusfv.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_NwX02E1ZuSAE1os2dGKQcA_D_UNIQLb` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://xdjgjzwbvkkugxhzwkkg.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_SYzCqTsDZzEa-r5_NpXPEg_NFqlhND0` |
 | `OPENAI_API_KEY` | `[SET_IN_ENV_VARIABLE]` |
 
 **Build Settings:**
