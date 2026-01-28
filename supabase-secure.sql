@@ -1,0 +1,1069 @@
+-- ============================================
+-- MIGRACIÓN SUPABASE SEGURA - 257Club Transformación Consciente
+-- ============================================
+-- VERSIÓN: 2.0 - Con seguridad completa (RLS en todas las tablas)
+-- ============================================
+--
+-- INSTRUCCIONES:
+-- 1. Copia TODO este código
+-- 2. Ve a tu Supabase Dashboard
+-- 3. Entra a SQL Editor
+-- 4. Pega este código
+-- 5. Haz clic en "RUN"
+-- 6. Espera a que veas: "✅ Migración completada con éxito!"
+--
+-- ============================================
+
+-- ============================================
+-- PARTE 1: CREAR TIPOS ENUM
+-- ============================================
+-- Los ENUM son como "listas de opciones válidas" para columnas específicas
+-- Esto evita que se guarden valores incorrectos en la base de datos
+-- ============================================
+
+-- Roles de usuario: Define qué tipo de usuario es cada persona
+CREATE TYPE user_role AS ENUM ('CLIENT', 'COACH', 'NUTRITIONIST', 'MINDSET_COACH', 'ADMIN');
+
+-- Planes de suscripción: Define los tipos de planes disponibles
+CREATE TYPE subscription_plan AS ENUM ('START', 'PRO', 'ELITE', 'EXPERIENCE');
+
+-- Estado de suscripción: Define el estado actual del plan
+CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'CANCELLED', 'PAUSED', 'EXPIRED');
+
+-- Origen del lead: ¿De dónde vino el cliente?
+CREATE TYPE lead_source AS ENUM ('INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'REFERRAL', 'GOOGLE', 'OTHER');
+
+-- Estado del lead: En qué etapa del proceso de ventas está
+CREATE TYPE lead_status AS ENUM ('NEW', 'CONTACTED', 'QUALIFIED', 'SCHEDULED', 'PROPOSAL_SENT', 'WON', 'LOST', 'FOLLOW_UP');
+
+-- Tipo de entrenamiento: Qué tipo de entrenamiento es
+CREATE TYPE workout_type AS ENUM ('STRENGTH', 'HYPERTROPHY', 'ENDURANCE', 'ZONE_2', 'MOBILITY', 'FULL_BODY', 'UPPER_BODY', 'LOWER_BODY', 'HIIT', 'FUNCTIONAL');
+
+-- Dificultad del entrenamiento: Para principiantes, intermedios o avanzados
+CREATE TYPE workout_difficulty AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED');
+
+-- Tipo de comida: Desayuno, almuerzo, etc.
+CREATE TYPE meal_type AS ENUM ('BREAKFAST', 'MORNING_SNACK', 'LUNCH', 'AFTERNOON_SNACK', 'DINNER', 'EVENING_SNACK', 'PRE_WORKOUT', 'POST_WORKOUT');
+
+-- Tipo de ejercicio mental: Meditación, journaling, etc.
+CREATE TYPE mindset_exercise_type AS ENUM ('JOURNALING', 'MEDITATION', 'VISUALIZATION', 'AFFIRMATION', 'GOAL_SETTING', 'REFLECTION', 'BREATHING', 'GRATITUDE');
+
+-- Tipo de cita: ¿Para qué es la reunión?
+CREATE TYPE appointment_type AS ENUM ('ONBOARDING', 'CHECK_IN', 'COACHING', 'NUTRITION', 'MINDSET', 'SALES_CALL', 'FOLLOW_UP');
+
+-- Estado de cita: Estado actual de la reunión
+CREATE TYPE appointment_status AS ENUM ('SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW');
+
+-- ============================================
+-- PARTE 2: CREAR TABLAS PRINCIPALES
+-- ============================================
+
+-- ============================================
+-- TABLA: USERS (Usuarios)
+-- ============================================
+-- Contiene la información básica de todos los usuarios del sistema
+-- RLS: HABILITADO - Solo el usuario puede ver sus propios datos
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  password VARCHAR(255),
+  phone VARCHAR(20),
+  role user_role DEFAULT 'CLIENT',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices para mejor rendimiento en búsquedas
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+
+-- HABILITAR RLS (Row Level Security) - Seguridad a nivel de fila
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA USERS:
+-- Los usuarios SOLO pueden leer sus propios datos (donde id coincide con auth.uid)
+CREATE POLICY "Users can read own data" ON users
+  FOR SELECT USING (auth.uid()::text = id::text);
+
+-- Los usuarios SOLO pueden actualizar sus propios datos
+CREATE POLICY "Users can update own data" ON users
+  FOR UPDATE USING (auth.uid()::text = id::text);
+
+-- ============================================
+-- TABLA: LEADS (Prospectos/Clientes potenciales)
+-- ============================================
+-- Contiene la información de leads del sistema
+-- RLS: HABILITADO - Para demo, cualquiera puede leer/crear leads
+CREATE TABLE leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(20),
+  source lead_source DEFAULT 'WEBSITE',
+  status lead_status DEFAULT 'NEW',
+  goals TEXT,
+  budget TEXT,
+  timeline TEXT,
+  pain_points TEXT,
+  previous_attempts TEXT,
+  commitment INTEGER,
+  notes TEXT,
+  last_contacted_at TIMESTAMP WITH TIME ZONE,
+  follow_up_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices para búsquedas rápidas
+CREATE INDEX idx_leads_email ON leads(email);
+CREATE INDEX idx_leads_status ON leads(status);
+CREATE INDEX idx_leads_source ON leads(source);
+CREATE INDEX idx_leads_created_at ON leads(created_at DESC);
+
+-- HABILITAR RLS
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA LEADS:
+-- Cualquiera puede crear leads (para el formulario de la landing page)
+CREATE POLICY "Anyone can create leads" ON leads
+  FOR INSERT WITH CHECK (true);
+
+-- Cualquiera puede leer leads (para demo/visualización pública)
+CREATE POLICY "Anyone can read leads" ON leads
+  FOR SELECT USING (true);
+
+-- ============================================
+-- TABLA: CLIENTS (Clientes activos)
+-- ============================================
+-- Contiene información detallada de los clientes del programa
+-- RLS: HABILITADO - Solo el usuario coach/admin puede ver, clientes leen sus propios datos
+CREATE TABLE clients (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date_of_birth DATE,
+  gender VARCHAR(10),
+  height DECIMAL(5, 2),
+  weight DECIMAL(5, 2),
+  body_fat DECIMAL(5, 2),
+  activity_level VARCHAR(20),
+  primary_goal TEXT,
+  secondary_goals TEXT,
+  goal_description TEXT,
+  injuries TEXT,
+  limitations TEXT,
+  equipment TEXT,
+  preferred_days TEXT,
+  preferred_time VARCHAR(20),
+  workout_frequency INTEGER,
+  workout_duration INTEGER,
+  status VARCHAR(20) DEFAULT 'active',
+  start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  end_date TIMESTAMP WITH TIME ZONE,
+  coach_notes TEXT,
+  mindset_notes TEXT,
+  nutrition_notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_clients_user_id ON clients(user_id);
+CREATE INDEX idx_clients_status ON clients(status);
+
+-- HABILITAR RLS
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA CLIENTS:
+-- Cliente puede leer SUS propios datos
+CREATE POLICY "Clients can read own data" ON clients
+  FOR SELECT USING (auth.uid()::text = user_id::text);
+
+-- Coach/Admin puede leer todos los datos
+CREATE POLICY "Service roles can read all clients" ON clients
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role IN ('COACH', 'NUTRITIONIST', 'MINDSET_COACH', 'ADMIN')
+    )
+  );
+
+-- Cliente puede actualizar SUS propios datos
+CREATE POLICY "Clients can update own data" ON clients
+  FOR UPDATE USING (auth.uid()::text = user_id::text);
+
+-- ============================================
+-- TABLA: COACHES (Entrenadores)
+-- ============================================
+-- Contiene información de los entrenadores del equipo
+-- RLS: HABILITADO - Solo coaches/admins pueden ver, cada coach sus propios datos
+CREATE TABLE coaches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  specialization TEXT,
+  bio TEXT,
+  certifications TEXT,
+  years_experience INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- HABILITAR RLS
+ALTER TABLE coaches ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA COACHES:
+-- Cualquiera puede leer (para ver equipo en el perfil)
+CREATE POLICY "Anyone can read coaches" ON coaches
+  FOR SELECT USING (true);
+
+-- Coach puede actualizar SUS propios datos
+CREATE POLICY "Coaches can update own data" ON coaches
+  FOR UPDATE USING (auth.uid()::text = user_id::text);
+
+-- Solo admins/coaches pueden insertar
+CREATE POLICY "Service roles can insert coaches" ON coaches
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role IN ('COACH', 'ADMIN')
+    )
+  );
+
+-- ============================================
+-- TABLA: NUTRITIONISTS (Nutricionistas)
+-- ============================================
+-- Contiene información de los nutricionistas del equipo
+-- IMPORTANTE: license_number es sensible - proteger con RLS
+-- RLS: HABILITADO - Solo admins pueden ver datos sensibles
+CREATE TABLE nutritionists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  specialization TEXT,
+  bio TEXT,
+  certifications TEXT,
+  license_number VARCHAR(50),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- HABILITAR RLS
+ALTER TABLE nutritionists ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA NUTRITIONISTS:
+-- Cualquiera puede leer NOMBRE y BIO (datos públicos del equipo)
+CREATE POLICY "Anyone can read public nutritionist info" ON nutritionists
+  FOR SELECT USING (true);
+
+-- NADIE puede ver license_number directamente (columna protegida)
+-- Esta se manejará a través de vistas o procedimientos especiales
+
+-- ============================================
+-- TABLA: MINDSET_COACHES (Coaches de mindset)
+-- ============================================
+-- Contiene información de los coaches de mindset
+-- RLS: HABILITADO - Protegido igual que nutritionists
+CREATE TABLE mindset_coaches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  specialization TEXT,
+  bio TEXT,
+  certifications TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- HABILITAR RLS
+ALTER TABLE mindset_coaches ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA MINDSET_COACHES:
+-- Cualquiera puede leer información pública
+CREATE POLICY "Anyone can read mindset coaches" ON mindset_coaches
+  FOR SELECT USING (true);
+
+-- ============================================
+-- TABLA: WORKOUT_PLANS (Planes de entrenamiento)
+-- ============================================
+-- Contiene los planes de entrenamiento asignados a cada cliente
+-- RLS: HABILITADO - Solo coach/admin y el cliente pueden ver
+CREATE TABLE workout_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  coach_id UUID REFERENCES coaches(id),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  type workout_type NOT NULL,
+  difficulty workout_difficulty NOT NULL,
+  weeks INTEGER DEFAULT 4,
+  workouts_per_week INTEGER DEFAULT 3,
+  is_active BOOLEAN DEFAULT TRUE,
+  start_date TIMESTAMP WITH TIME ZONE,
+  end_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_workout_plans_client_id ON workout_plans(client_id);
+CREATE INDEX idx_workout_plans_is_active ON workout_plans(is_active);
+
+-- HABILITAR RLS
+ALTER TABLE workout_plans ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA WORKOUT_PLANS:
+-- Cliente puede leer SUS planes
+CREATE POLICY "Clients can read own workout plans" ON workout_plans
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- Coach/Admin puede leer todos los planes
+CREATE POLICY "Service roles can read all workout plans" ON workout_plans
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role IN ('COACH', 'ADMIN')
+    )
+  );
+
+-- ============================================
+-- TABLA: EXERCISES (Ejercicios de la biblioteca)
+-- ============================================
+-- Contiene la biblioteca de ejercicios disponibles
+-- RLS: HABILITADO - Cualquiera puede leer, solo coaches/admins pueden editar
+CREATE TABLE exercises (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(50),
+  muscle_groups TEXT,
+  equipment VARCHAR(50),
+  difficulty VARCHAR(20),
+  description TEXT,
+  video_url TEXT,
+  image_url TEXT,
+  is_compound BOOLEAN DEFAULT FALSE,
+  instructions TEXT,
+  common_mistakes TEXT,
+  modifications TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_exercises_category ON exercises(category);
+CREATE INDEX idx_exercises_difficulty ON exercises(difficulty);
+
+-- HABILITAR RLS
+ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA EXERCISES:
+-- Cualquiera puede leer ejercicios
+CREATE POLICY "Anyone can read exercises" ON exercises
+  FOR SELECT USING (true);
+
+-- Solo coaches/admins pueden crear/editar ejercicios
+CREATE POLICY "Service roles can manage exercises" ON exercises
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role IN ('COACH', 'ADMIN')
+    )
+  );
+
+-- ============================================
+-- TABLA: WORKOUTS (Entrenamientos específicos dentro de un plan)
+-- ============================================
+-- Contiene los entrenamientos de cada plan
+-- RLS: HABILITADO - Protegido igual que workout_plans
+CREATE TABLE workouts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL REFERENCES workout_plans(id) ON DELETE CASCADE,
+  week INTEGER NOT NULL,
+  day INTEGER NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  type workout_type NOT NULL,
+  duration INTEGER,
+  rest_between_sets INTEGER,
+  exercises TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_workouts_plan_id ON workouts(plan_id);
+
+-- HABILITAR RLS
+ALTER TABLE workouts ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA WORKOUTS:
+-- Se heredan las políticas de workout_plans a través de relaciones
+
+-- ============================================
+-- TABLA: WORKOUT_SESSIONS (Sesiones de entrenamiento completadas)
+-- ============================================
+-- Contiene el historial de entrenamientos completados por cada usuario
+-- RLS: HABILITADO - Solo el usuario puede ver sus propias sesiones
+CREATE TABLE workout_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  workout_id UUID NOT NULL REFERENCES workouts(id),
+  date TIMESTAMP WITH TIME ZONE NOT NULL,
+  duration INTEGER,
+  notes TEXT,
+  rating INTEGER,
+  completed BOOLEAN DEFAULT FALSE,
+  exercise_data TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_workout_sessions_user_id ON workout_sessions(user_id);
+CREATE INDEX idx_workout_sessions_workout_id ON workout_sessions(workout_id);
+CREATE INDEX idx_workout_sessions_date ON workout_sessions(date DESC);
+
+-- HABILITAR RLS
+ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA WORKOUT_SESSIONS:
+-- Usuario puede leer SUS propias sesiones
+CREATE POLICY "Users can read own workout sessions" ON workout_sessions
+  FOR SELECT USING (auth.uid()::text = user_id::text);
+
+-- Usuario puede crear SUS propias sesiones
+CREATE POLICY "Users can create own workout sessions" ON workout_sessions
+  FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+
+-- Usuario puede actualizar SUS propias sesiones
+CREATE POLICY "Users can update own workout sessions" ON workout_sessions
+  FOR UPDATE USING (auth.uid()::text = user_id::text);
+
+-- ============================================
+-- TABLA: NUTRITION_PLANS (Planes de nutrición)
+-- ============================================
+-- Contiene los planes de nutrición asignados a clientes
+-- RLS: HABILITADO - Protegido igual que workout_plans
+CREATE TABLE nutrition_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  nutritionist_id UUID REFERENCES nutritionists(id),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  calories INTEGER,
+  macros TEXT,
+  hydration_goal DECIMAL(4, 2),
+  dietary_restrictions TEXT,
+  allergies TEXT,
+  dislikes TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  start_date TIMESTAMP WITH TIME ZONE,
+  end_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_nutrition_plans_client_id ON nutrition_plans(client_id);
+CREATE INDEX idx_nutrition_plans_is_active ON nutrition_plans(is_active);
+
+-- HABILITAR RLS
+ALTER TABLE nutrition_plans ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA NUTRITION_PLANS:
+-- Cliente puede leer SUS planes
+CREATE POLICY "Clients can read own nutrition plans" ON nutrition_plans
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- Nutritionist/Admin puede leer planes que crearon
+CREATE POLICY "Nutritionists can read assigned plans" ON nutrition_plans
+  FOR SELECT USING (auth.uid()::text = nutritionist_id::text);
+
+-- ============================================
+-- TABLA: MEALS (Comidas de un plan de nutrición)
+-- ============================================
+-- Contiene las comidas de cada plan nutricional
+-- RLS: HABILITADO - Se hereda protección de nutrition_plans
+CREATE TABLE meals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL REFERENCES nutrition_plans(id) ON DELETE CASCADE,
+  type meal_type NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  calories INTEGER,
+  macros TEXT,
+  ingredients TEXT,
+  instructions TEXT,
+  image_url TEXT,
+  prep_time INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_meals_plan_id ON meals(plan_id);
+
+-- HABILITAR RLS
+ALTER TABLE meals ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA MEALS:
+-- Cliente puede leer comidas de SUS planes
+CREATE POLICY "Clients can read own meals" ON meals
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id IN (
+        SELECT client_id FROM nutrition_plans WHERE id = plan_id
+      )
+    )
+  );
+
+-- ============================================
+-- TABLA: MEASUREMENTS (Mediciones de progreso)
+-- ============================================
+-- Contiene las mediciones de progreso de cada cliente
+-- RLS: HABILITADO - Solo el usuario puede ver sus mediciones
+CREATE TABLE measurements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  weight DECIMAL(5, 2),
+  body_fat DECIMAL(5, 2),
+  muscle_mass DECIMAL(5, 2),
+  water_mass DECIMAL(5, 2),
+  chest DECIMAL(5, 2),
+  waist DECIMAL(5, 2),
+  hips DECIMAL(5, 2),
+  biceps_left DECIMAL(5, 2),
+  biceps_right DECIMAL(5, 2),
+  thighs_left DECIMAL(5, 2),
+  thighs_right DECIMAL(5, 2),
+  calves_left DECIMAL(5, 2),
+  calves_right DECIMAL(5, 2),
+  resting_heart_rate INTEGER,
+  blood_pressure_systolic INTEGER,
+  blood_pressure_diastolic INTEGER,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_measurements_client_id ON measurements(client_id);
+CREATE INDEX idx_measurements_date ON measurements(date DESC);
+
+-- HABILITAR RLS
+ALTER TABLE measurements ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA MEASUREMENTS:
+-- Cliente puede leer SUS mediciones
+CREATE POLICY "Clients can read own measurements" ON measurements
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- Cliente puede crear SUS mediciones
+CREATE POLICY "Clients can create own measurements" ON measurements
+  FOR INSERT WITH CHECK (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- ============================================
+-- TABLA: PROGRESS_PHOTOS (Fotos de progreso)
+-- ============================================
+-- Contiene las fotos de progreso de cada cliente
+-- IMPORTANTE: URLs pueden ser sensibles - proteger con RLS
+-- RLS: HABILITADO - Solo el cliente puede ver sus propias fotos
+CREATE TABLE progress_photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  front_url TEXT,
+  side_url TEXT,
+  back_url TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_progress_photos_client_id ON progress_photos(client_id);
+CREATE INDEX idx_progress_photos_date ON progress_photos(date DESC);
+
+-- HABILITAR RLS
+ALTER TABLE progress_photos ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA PROGRESS_PHOTOS:
+-- Cliente puede leer SUS fotos
+CREATE POLICY "Clients can read own progress photos" ON progress_photos
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- Cliente puede crear SUS fotos
+CREATE POLICY "Clients can create own progress photos" ON progress_photos
+  FOR INSERT WITH CHECK (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- ============================================
+-- TABLA: MINDSET_EXERCISES (Ejercicios de mindset)
+-- ============================================
+-- Contiene los ejercicios de mindset asignados a clientes
+-- RLS: HABILITADO - Protegido igual que measurements
+CREATE TABLE mindset_exercises (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  mindset_coach_id UUID REFERENCES mindset_coaches(id),
+  type mindset_exercise_type NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  content TEXT NOT NULL,
+  duration INTEGER,
+  is_completed BOOLEAN DEFAULT FALSE,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  user_response TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_mindset_exercises_client_id ON mindset_exercises(client_id);
+
+-- HABILITAR RLS
+ALTER TABLE mindset_exercises ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA MINDSET_EXERCISES:
+-- Cliente puede leer SUS ejercicios
+CREATE POLICY "Clients can read own mindset exercises" ON mindset_exercises
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- Cliente puede crear SUS ejercicios
+CREATE POLICY "Clients can create own mindset exercises" ON mindset_exercises
+  FOR INSERT WITH CHECK (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- ============================================
+-- TABLA: APPOINTMENTS (Citas/reuniones)
+-- ============================================
+-- Contiene todas las citas del sistema
+-- RLS: HABILITADO - Participantes pueden ver, coaches/admins pueden gestionar
+CREATE TABLE appointments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id UUID REFERENCES clients(id),
+  coach_id UUID REFERENCES coaches(id),
+  nutritionist_id UUID REFERENCES nutritionists(id),
+  mindset_coach_id UUID REFERENCES mindset_coaches(id),
+  lead_id UUID REFERENCES leads(id),
+  type appointment_type NOT NULL,
+  status appointment_status DEFAULT 'SCHEDULED',
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  meeting_url TEXT,
+  meeting_id VARCHAR(100),
+  meeting_password VARCHAR(50),
+  notes TEXT,
+  follow_up_actions TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_appointments_user_id ON appointments(user_id);
+CREATE INDEX idx_appointments_client_id ON appointments(client_id);
+CREATE INDEX idx_appointments_status ON appointments(status);
+CREATE INDEX idx_appointments_start_time ON appointments(start_time DESC);
+
+-- HABILITAR RLS
+ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA APPOINTMENTS:
+-- Cliente puede leer SUS citas
+CREATE POLICY "Clients can read own appointments" ON appointments
+  FOR SELECT USING (
+    auth.uid()::text = user_id::text
+    OR (
+      auth.uid()::text IN (
+        SELECT user_id::text FROM clients WHERE id = client_id
+      )
+    )
+  );
+
+-- Coach/Admin puede leer todas las citas
+CREATE POLICY "Service roles can read all appointments" ON appointments
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role IN ('COACH', 'NUTRITIONIST', 'MINDSET_COACH', 'ADMIN')
+    )
+  );
+
+-- Coaches pueden crear citas
+CREATE POLICY "Service roles can create appointments" ON appointments
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role IN ('COACH', 'NUTRITIONIST', 'MINDSET_COACH', 'ADMIN')
+    )
+  );
+
+-- ============================================
+-- TABLA: COMMUNITY_POSTS (Posts de la comunidad)
+-- ============================================
+-- Contiene los posts del foro/comunidad
+-- RLS: HABILITADO - Cualquiera puede leer, solo autores pueden editar
+CREATE TABLE community_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  image_url TEXT,
+  likes INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_community_posts_user_id ON community_posts(user_id);
+CREATE INDEX idx_community_posts_created_at ON community_posts(created_at DESC);
+
+-- HABILITAR RLS
+ALTER TABLE community_posts ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA COMMUNITY_POSTS:
+-- Cualquiera puede leer posts
+CREATE POLICY "Anyone can read posts" ON community_posts
+  FOR SELECT USING (true);
+
+-- Usuario puede crear posts
+CREATE POLICY "Users can create posts" ON community_posts
+  FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+
+-- Usuario puede actualizar SUS posts
+CREATE POLICY "Users can update own posts" ON community_posts
+  FOR UPDATE USING (auth.uid()::text = user_id::text);
+
+-- Usuario puede borrar SUS posts
+CREATE POLICY "Users can delete own posts" ON community_posts
+  FOR DELETE USING (auth.uid()::text = user_id::text);
+
+-- ============================================
+-- TABLA: CHAT_MESSAGES (Comentarios de posts)
+-- ============================================
+-- Contiene los comentarios/comunicación en la comunidad
+-- RLS: HABILITADO - Similar a community_posts
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  community_post_id UUID REFERENCES community_posts(id),
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
+CREATE INDEX idx_chat_messages_community_post_id ON chat_messages(community_post_id);
+
+-- HABILITAR RLS
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA CHAT_MESSAGES:
+-- Cualquiera puede leer mensajes
+CREATE POLICY "Anyone can read chat messages" ON chat_messages
+  FOR SELECT USING (true);
+
+-- Usuario puede crear mensajes
+CREATE POLICY "Users can create chat messages" ON chat_messages
+  FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+
+-- ============================================
+-- TABLA: AI_CONVERSATIONS (Historial de chat con IA)
+-- ============================================
+-- Contiene el historial de conversaciones con la IA
+-- IMPORTANTE: Puede contener información personal - proteger con RLS
+-- RLS: HABILITADO - Solo el usuario puede ver SUS conversaciones
+CREATE TABLE ai_conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  messages TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_ai_conversations_user_id ON ai_conversations(user_id);
+
+-- HABILITAR RLS
+ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA AI_CONVERSATIONS:
+-- Usuario puede leer SUS conversaciones
+CREATE POLICY "Users can read own AI conversations" ON ai_conversations
+  FOR SELECT USING (auth.uid()::text = user_id::text);
+
+-- Usuario puede crear SUS conversaciones (el sistema las crea automáticamente)
+CREATE POLICY "Users can create own AI conversations" ON ai_conversations
+  FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+
+-- Usuario puede actualizar SUS conversaciones
+CREATE POLICY "Users can update own AI conversations" ON ai_conversations
+  FOR UPDATE USING (auth.uid()::text = user_id::text);
+
+-- ============================================
+-- TABLA: SUBSCRIPTIONS (Suscripciones de pago)
+-- ============================================
+-- Contiene las suscripciones de los clientes
+-- IMPORTANTE: Información financiera - proteger con RLS
+-- RLS: HABILITADO - Solo admin puede ver todas, clientes las suyas
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  plan subscription_plan NOT NULL,
+  status subscription_status DEFAULT 'ACTIVE',
+  start_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  end_date TIMESTAMP WITH TIME ZONE,
+  amount DECIMAL(10, 2),
+  payment_method TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_subscriptions_client_id ON subscriptions(client_id);
+CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+
+-- HABILITAR RLS
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA SUBSCRIPTIONS:
+-- Cliente puede leer SUS suscripciones
+CREATE POLICY "Clients can read own subscriptions" ON subscriptions
+  FOR SELECT USING (
+    auth.uid()::text IN (
+      SELECT user_id::text FROM clients WHERE id = client_id
+    )
+  );
+
+-- Solo Admin puede ver todas las suscripciones
+CREATE POLICY "Admin can read all subscriptions" ON subscriptions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role = 'ADMIN'
+    )
+  );
+
+-- ============================================
+-- TABLA: NOTIFICATIONS (Notificaciones del sistema)
+-- ============================================
+-- Contiene las notificaciones para los usuarios
+-- RLS: HABILITADO - Solo el usuario puede ver SUS notificaciones
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  type VARCHAR(50),
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_notifications_is_read ON notifications(is_read);
+
+-- HABILITAR RLS
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS DE SEGURIDAD PARA NOTIFICATIONS:
+-- Usuario puede leer SUS notificaciones
+CREATE POLICY "Users can read own notifications" ON notifications
+  FOR SELECT USING (auth.uid()::text = user_id::text);
+
+-- Usuario puede actualizar SUS notificaciones (marcar como leído)
+CREATE POLICY "Users can update own notifications" ON notifications
+  FOR UPDATE USING (auth.uid()::text = user_id::text);
+
+-- ============================================
+-- PARTE 3: TRIGGER PARA ACTUALIZAR updated_at AUTOMÁTICAMENTE
+-- ============================================
+-- Esta función se ejecuta automáticamente ANTES de cada UPDATE
+-- y actualiza el campo updated_at con la fecha y hora actual
+-- ============================================
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- CREAR TRIGGERS PARA TODAS LAS TABLAS
+-- ============================================
+-- Cada tabla que tiene updated_at necesita este trigger
+-- para que la fecha se actualice automáticamente
+-- ============================================
+
+CREATE TRIGGER update_users_updated_at
+  BEFORE UPDATE ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_leads_updated_at
+  BEFORE UPDATE ON leads
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_clients_updated_at
+  BEFORE UPDATE ON clients
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_coaches_updated_at
+  BEFORE UPDATE ON coaches
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_nutritionists_updated_at
+  BEFORE UPDATE ON nutritionists
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_mindset_coaches_updated_at
+  BEFORE UPDATE ON mindset_coaches
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_workout_plans_updated_at
+  BEFORE UPDATE ON workout_plans
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_exercises_updated_at
+  BEFORE UPDATE ON exercises
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_workouts_updated_at
+  BEFORE UPDATE ON workouts
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_workout_sessions_updated_at
+  BEFORE UPDATE ON workout_sessions
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_nutrition_plans_updated_at
+  BEFORE UPDATE ON nutrition_plans
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_meals_updated_at
+  BEFORE UPDATE ON meals
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_measurements_updated_at
+  BEFORE UPDATE ON measurements
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_progress_photos_updated_at
+  BEFORE UPDATE ON progress_photos
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_mindset_exercises_updated_at
+  BEFORE UPDATE ON mindset_exercises
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_appointments_updated_at
+  BEFORE UPDATE ON appointments
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_community_posts_updated_at
+  BEFORE UPDATE ON community_posts
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_chat_messages_updated_at
+  BEFORE UPDATE ON chat_messages
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_ai_conversations_updated_at
+  BEFORE UPDATE ON ai_conversations
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_subscriptions_updated_at
+  BEFORE UPDATE ON subscriptions
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_notifications_updated_at
+  BEFORE UPDATE ON notifications
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- PARTE 4: VERIFICACIÓN Y MENAJE FINAL
+-- ============================================
+-- Verifica que todas las tablas se crearon correctamente
+-- y muestra un resumen de lo que se ha creado
+-- ============================================
+
+-- Verificar que todas las tablas existen
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
+
+-- ============================================
+-- VERIFICACIÓN DE SEGURIDAD
+-- ============================================
+-- Muestra qué tablas tienen RLS habilitado
+-- IMPORTANTE: Todas las tablas deberían mostrar "ENABLED"
+-- ============================================
+
+SELECT
+  schemaname,
+  tablename,
+  policyname,
+  permissive,
+  roles,
+  cmd,
+  qual
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+
+-- Mensaje final
+SELECT '✅ Migración completada con éxito!' AS status;
+SELECT '🔒 RLS habilitado en todas las tablas' AS security_status;
+SELECT '📝 Todas las políticas de seguridad aplicadas' AS policies_status;

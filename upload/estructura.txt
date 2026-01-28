@@ -1,0 +1,4 @@
+1. OpenAI key: [SET_IN_ENV_VARIABLE]
+2. Account SID: [SET_IN_ENV_VARIABLE]
+3. Token de Twilio: [SET_IN_ENV_VARIABLE]
+4. Ruta iCloud: C:\Users\lucas\iCloudPhotos\Photos

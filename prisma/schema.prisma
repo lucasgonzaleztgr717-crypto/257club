@@ -1,0 +1,675 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USUARIOS Y ROLES
+// ============================================
+
+enum UserRole {
+  CLIENT
+  COACH
+  NUTRITIONIST
+  MINDSET_COACH
+  ADMIN
+}
+
+enum SubscriptionPlan {
+  START
+  PRO
+  ELITE
+  EXPERIENCE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAUSED
+  EXPIRED
+}
+
+model User {
+  id                String              @id @default(cuid())
+  email             String              @unique
+  name              String?
+  password          String?
+  phone             String?
+  role              UserRole            @default(CLIENT)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relations
+  client            Client?
+  lead              Lead?
+  coach             Coach?
+  nutritionist      Nutritionist?
+  mindsetCoach      MindsetCoach?
+  workoutSessions   WorkoutSession[]
+  chatMessages      ChatMessage[]
+  communityPosts    CommunityPost[]
+  aiConversations   AIConversation[]
+  appointments      Appointment[]
+  subscriptions     Subscription[]
+  notifications     Notification[]
+}
+
+// ============================================
+// CLIENTES
+// ============================================
+
+model Client {
+  id                  String              @id @default(cuid())
+  userId              String              @unique
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Perfil personal
+  dateOfBirth         DateTime?
+  gender              String?             // male, female, other
+  height              Float?              // in cm
+  weight              Float?              // in kg
+  bodyFat             Float?              // percentage
+  activityLevel       String?             // sedentary, lightly_active, moderate, very_active, extra_active
+
+  // Objetivos
+  primaryGoal         String?             // weight_loss, muscle_gain, strength, health, endurance
+  secondaryGoals      String?             // JSON array of goals
+  goalDescription     String?             // Text description of goals
+
+  // Preferencias y limitaciones
+  injuries            String?             // JSON array of injuries
+  limitations         String?             // Text description
+  equipment           String?             // JSON array of available equipment
+  preferredDays       String?             // JSON array of preferred workout days
+  preferredTime       String?             // morning, afternoon, evening
+  workoutFrequency    Int?                // workouts per week
+  workoutDuration     Int?                // minutes per workout
+
+  // Estado
+  status              String              @default("active") // active, inactive, completed
+  startDate           DateTime            @default(now())
+  endDate             DateTime?
+
+  // Notas del coach
+  coachNotes          String?
+  mindsetNotes        String?
+  nutritionNotes      String?
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  // Relations
+  measurements        Measurement[]
+  progressPhotos      ProgressPhoto[]
+  workoutPlans        WorkoutPlan[]
+  nutritionPlans      NutritionPlan[]
+  mindsetExercises    MindsetExercise[]
+  appointments        Appointment[]
+  subscriptions       Subscription[]
+}
+
+// ============================================
+// COACHES / EQUIPO
+// ============================================
+
+model Coach {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  specialization    String?
+  bio               String?
+  certifications    String?  // JSON array
+  yearsExperience   Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  workoutPlans      WorkoutPlan[]
+  appointments      Appointment[]
+}
+
+model Nutritionist {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  specialization    String?
+  bio               String?
+  certifications    String?  // JSON array
+  licenseNumber     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  nutritionPlans    NutritionPlan[]
+  appointments      Appointment[]
+}
+
+model MindsetCoach {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  specialization    String?
+  bio               String?
+  certifications    String?  // JSON array
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mindsetExercises  MindsetExercise[]
+  appointments      Appointment[]
+}
+
+// ============================================
+// LEADS / PROSPECTOS
+// ============================================
+
+enum LeadSource {
+  INSTAGRAM
+  FACEBOOK
+  WEBSITE
+  REFERRAL
+  GOOGLE
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  SCHEDULED
+  PROPOSAL_SENT
+  WON
+  LOST
+  FOLLOW_UP
+}
+
+model Lead {
+  id                String      @id @default(cuid())
+  userId            String?     @unique
+  user              User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  name              String
+  email             String
+  phone             String?
+  source            LeadSource  @default(INSTAGRAM)
+  status            LeadStatus  @default(NEW)
+
+  // Cualificación
+  goals             String?
+  budget            String?
+  timeline          String?
+  painPoints        String?
+  previousAttempts  String?
+  commitment        Int?        // 1-10 scale
+
+  // Seguimiento
+  notes             String?     // JSON array of notes with timestamps
+  lastContactedAt   DateTime?
+  followUpAt        DateTime?
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  appointments      Appointment[]
+}
+
+// ============================================
+// ENTRENAMIENTOS
+// ============================================
+
+enum WorkoutType {
+  STRENGTH
+  HYPERTROPHY
+  ENDURANCE
+  ZONE_2
+  MOBILITY
+  FULL_BODY
+  UPPER_BODY
+  LOWER_BODY
+  HIIT
+  FUNCTIONAL
+}
+
+enum WorkoutDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model WorkoutPlan {
+  id                String              @id @default(cuid())
+  clientId          String
+  client            Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  coachId           String?
+  coach             Coach?              @relation(fields: [coachId], references: [id])
+
+  name              String
+  description       String?
+  type              WorkoutType
+  difficulty        WorkoutDifficulty
+  weeks             Int                 @default(4)
+  workoutsPerWeek   Int                 @default(3)
+
+  // Estado
+  isActive          Boolean             @default(true)
+  startDate         DateTime?
+  endDate           DateTime?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relations
+  workouts          Workout[]
+}
+
+model Workout {
+  id                String              @id @default(cuid())
+  planId            String
+  plan              WorkoutPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  week              Int
+  day               Int
+  name              String
+  description       String?
+  type              WorkoutType
+  duration          Int?                // minutes
+  restBetweenSets   Int?                // seconds
+
+  // Ejercicios (JSON array of exercise objects)
+  exercises         String              // JSON: [{exerciseId, sets, reps, weight, rest, notes}]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relations
+  sessions          WorkoutSession[]
+}
+
+model Exercise {
+  id                String   @id @default(cuid())
+  name              String
+  category          String?  // chest, back, legs, shoulders, arms, core, cardio
+  muscleGroups      String?  // JSON array
+  equipment         String?  // barbell, dumbbell, machine, bodyweight, etc
+  difficulty        String?
+  description       String?
+  videoUrl          String?
+  imageUrl          String?
+  isCompound        Boolean  @default(false)
+
+  // Técnica
+  instructions      String?  // JSON array of step-by-step instructions
+  commonMistakes    String?  // JSON array
+  modifications     String?  // JSON array of alternatives
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model WorkoutSession {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  workoutId         String
+  workout           Workout  @relation(fields: [workoutId], references: [id])
+
+  date              DateTime
+  duration          Int?     // minutes
+  notes             String?
+  rating            Int?     // 1-5 scale
+  completed         Boolean  @default(false)
+
+  // Registro de ejecución (JSON)
+  exerciseData      String?  // JSON: detailed performance data for each exercise
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================
+// NUTRICIÓN
+// ============================================
+
+enum MealType {
+  BREAKFAST
+  MORNING_SNACK
+  LUNCH
+  AFTERNOON_SNACK
+  DINNER
+  EVENING_SNACK
+  PRE_WORKOUT
+  POST_WORKOUT
+}
+
+model NutritionPlan {
+  id                String          @id @default(cuid())
+  clientId          String
+  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  nutritionistId    String?
+  nutritionist      Nutritionist?   @relation(fields: [nutritionistId], references: [id])
+
+  name              String
+  description       String?
+  calories          Int?
+  macros            String?         // JSON: {protein, carbs, fat}
+  hydrationGoal     Float?          // liters per day
+
+  // Preferencias
+  dietaryRestrictions String?       // JSON array
+  allergies         String?         // JSON array
+  dislikes          String?         // JSON array
+
+  isActive          Boolean         @default(true)
+  startDate         DateTime?
+  endDate           DateTime?
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  meals             Meal[]
+}
+
+model Meal {
+  id                String          @id @default(cuid())
+  planId            String
+  plan              NutritionPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  type              MealType
+  name              String
+  description       String?
+  calories          Int?
+  macros            String?         // JSON: {protein, carbs, fat}
+
+  // Ingredientes (JSON)
+  ingredients       String?         // JSON array of ingredients
+  instructions      String?
+
+  imageUrl          String?
+  prepTime          Int?            // minutes
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+// ============================================
+// MEDICIONES Y PROGRESO
+// ============================================
+
+model Measurement {
+  id                String   @id @default(cuid())
+  clientId          String
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  date              DateTime @default(now())
+
+  // Métricas principales
+  weight            Float?
+  bodyFat           Float?
+  muscleMass        Float?
+  waterMass         Float?
+
+  // Circunferencias (cm)
+  chest             Float?
+  waist             Float?
+  hips              Float?
+  bicepsLeft        Float?
+  bicepsRight       Float?
+  thighsLeft        Float?
+  thighsRight       Float?
+  calvesLeft        Float?
+  calvesRight       Float?
+
+  // Otros
+  restingHeartRate  Int?
+  bloodPressureSystolic  Int?
+  bloodPressureDiastolic Int?
+
+  notes             String?
+
+  createdAt         DateTime @default(now())
+}
+
+model ProgressPhoto {
+  id                String   @id @default(cuid())
+  clientId          String
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  date              DateTime @default(now())
+
+  // URLs de fotos
+  frontUrl          String?
+  sideUrl           String?
+  backUrl           String?
+
+  notes             String?
+
+  createdAt         DateTime @default(now())
+}
+
+// ============================================
+// MINDSET / PSICOLOGÍA
+// ============================================
+
+enum MindsetExerciseType {
+  JOURNALING
+  MEDITATION
+  VISUALIZATION
+  AFFIRMATION
+  GOAL_SETTING
+  REFLECTION
+  BREATHING
+  GRATITUDE
+}
+
+model MindsetExercise {
+  id                String            @id @default(cuid())
+  clientId          String
+  client            Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  mindsetCoachId    String?
+  mindsetCoach      MindsetCoach?     @relation(fields: [mindsetCoachId], references: [id])
+
+  type              MindsetExerciseType
+  title             String
+  description       String?
+  content           String            // JSON with exercise details
+  duration          Int?              // minutes
+
+  isCompleted       Boolean           @default(false)
+  completedAt       DateTime?
+  userResponse      String?           // JSON with user's response
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+// ============================================
+// CITAS / LLAMADAS
+// ============================================
+
+enum AppointmentType {
+  ONBOARDING
+  CHECK_IN
+  COACHING
+  NUTRITION
+  MINDSET
+  SALES_CALL
+  FOLLOW_UP
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Appointment {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId          String?
+  client            Client?           @relation(fields: [clientId], references: [id])
+
+  coachId           String?
+  coach             Coach?            @relation(fields: [coachId], references: [id])
+
+  nutritionistId    String?
+  nutritionist      Nutritionist?     @relation(fields: [nutritionistId], references: [id])
+
+  mindsetCoachId    String?
+  mindsetCoach      MindsetCoach?     @relation(fields: [mindsetCoachId], references: [id])
+
+  leadId            String?
+  lead              Lead?             @relation(fields: [leadId], references: [id])
+
+  type              AppointmentType
+  status            AppointmentStatus @default(SCHEDULED)
+
+  title             String
+  description       String?
+  startTime         DateTime
+  endTime           DateTime
+
+  meetingUrl        String?          // Zoom, Google Meet, etc
+  meetingId         String?
+  meetingPassword   String?
+
+  notes             String?
+  followUpActions   String?          // JSON array of action items
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+// ============================================
+// COMUNIDAD / CHAT
+// ============================================
+
+model ChatMessage {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content           String
+  isFromUser        Boolean  @default(true)
+  isRead            Boolean  @default(false)
+
+  // Si es mensaje de comunidad
+  communityPostId   String?
+  communityPost     CommunityPost? @relation(fields: [communityPostId], references: [id])
+
+  createdAt         DateTime @default(now())
+}
+
+model CommunityPost {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content           String
+  imageUrl          String?
+  videoUrl          String?
+
+  likes             Int      @default(0)
+  isPinned          Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  comments          ChatMessage[]
+}
+
+// ============================================
+// IA / CHATBOT
+// ============================================
+
+model AIConversation {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title             String?
+  messages          String   // JSON array of message objects
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================
+// SUSCRIPCIONES / PAGOS
+// ============================================
+
+model Subscription {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId          String?
+  client            Client?           @relation(fields: [clientId], references: [id])
+
+  plan              SubscriptionPlan
+  status            SubscriptionStatus @default(ACTIVE)
+
+  startDate         DateTime          @default(now())
+  endDate           DateTime?
+
+  amount            Float             // ARS
+  currency          String            @default("ARS")
+
+  paymentMethod     String?           // mercadopago, stripe, etc
+  paymentId         String?           // external payment ID
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+// ============================================
+// NOTIFICACIONES
+// ============================================
+
+enum NotificationType {
+  WORKOUT_REMINDER
+  MEAL_REMINDER
+  CHECK_IN_REMINDER
+  APPOINTMENT_REMINDER
+  PROGRESS_UPDATE
+  COMMUNITY_POST
+  SYSTEM_ANNOUNCEMENT
+}
+
+model Notification {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type              NotificationType
+  title             String
+  message           String
+  link              String?
+
+  isRead            Boolean           @default(false)
+
+  createdAt         DateTime          @default(now())
+}
