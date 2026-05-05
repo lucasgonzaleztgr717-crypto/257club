@@ -629,137 +629,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Lead Form Section */}
+      {/* Lead Form Section - Google Form */}
       <section id="lead-form" className="py-20">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto">
             <Card>
               <CardHeader className="text-center">
                 <CardTitle className="text-3xl">
-                  {submitted ? '¡Gracias por tu Interés!' : 'Agenda tu Llamada Gratuita'}
+                  Estás a un paso de comenzar tu transformación
                 </CardTitle>
-                <CardDescription>
-                  {submitted
-                    ? 'Te contactaremos pronto para programar tu llamada de transformación.'
-                    : 'Completa el formulario y recibiremos tu guía gratuita + llamada de diagnóstico (30 min)'}
+                <CardDescription className="text-base mt-4">
+                  Déjanos conocerte un poco y Lucas se contactará con vos para diseñar tu plan personalizado
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                {errorMessage && (
-                  <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm text-destructive font-medium">Error</p>
-                      <p className="text-sm text-destructive/80 mt-1">{errorMessage}</p>
-                    </div>
-                  </div>
-                )}
-                {!submitted ? (
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Nombre completo *</Label>
-                        <Input
-                          id="name"
-                          required
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          placeholder="Tu nombre"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Teléfono *</Label>
-                        <Input
-                          id="phone"
-                          required
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="+54 9 11..."
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="tu@email.com"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="goal">¿Cuál es tu objetivo principal? *</Label>
-                      <Textarea
-                        id="goal"
-                        required
-                        value={formData.goal}
-                        onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                        placeholder="Ej: Perder 10kg en 3 meses, ganar masa muscular, mejorar salud..."
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="painPoints">
-                        ¿Qué te frustra más de tu situación actual?
-                      </Label>
-                      <Textarea
-                        id="painPoints"
-                        value={formData.painPoints}
-                        onChange={(e) => setFormData({ ...formData, painPoints: e.target.value })}
-                        placeholder="Ej: He intentado varias dietas y no funcionan, no tengo tiempo, me desmotivo rápido..."
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="commitment">
-                        En escala 1-10, qué tan comprometido estás con cambiar ahora
-                      </Label>
-                      <Input
-                        id="commitment"
-                        type="range"
-                        min="1"
-                        max="10"
-                        value={formData.commitment}
-                        onChange={(e) => setFormData({ ...formData, commitment: e.target.value })}
-                        className="w-full"
-                      />
-                      <div className="text-center text-2xl font-bold text-primary">
-                        {formData.commitment}/10
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      size="lg"
-                      className="w-full"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Enviando...' : 'Obtener mi Plan Gratis + Llamada'}
-                    </Button>
-
-                    <p className="text-xs text-center text-muted-foreground">
-                      Al enviar aceptas recibir comunicación sobre nuestra programa. Tus datos están seguros.
-                    </p>
-                  </form>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="h-20 w-20 bg-primary rounded-full flex items-center justify-center mx-auto mb-6">
-                      <CheckCircle2 className="h-10 w-10 text-primary-foreground" />
-                    </div>
-                    <p className="text-lg mb-4">
-                      Tu solicitud ha sido recibida correctamente.
-                    </p>
-                    <p className="text-muted-foreground">
-                      Revisa tu email para confirmar y recibirás información sobre tu llamada gratuita.
-                    </p>
-                  </div>
-                )}
+              <CardContent className="flex justify-center">
+                <iframe 
+                  src="https://docs.google.com/forms/d/e/1FAIpQLSezCSfiDUI5CdQWq0qFqnCj91bb7AczYJ3WuUG7xufMcGIzWQ/viewform?embedded=true" 
+                  width="100%" 
+                  height="700" 
+                  frameBorder="0" 
+                  marginHeight={0} 
+                  marginWidth={0}
+                  style={{ borderRadius: '8px', maxWidth: '600px' }}
+                >
+                  Cargando…
+                </iframe>
               </CardContent>
             </Card>
           </div>
